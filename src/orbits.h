@@ -72,17 +72,18 @@ namespace orbits {
         double w = rad(wbar - Om);
         Om = rad(Om);
 
-        double cw = cos(w);
-        double sw = sin(w);
-        double c0 = sin(Om);
-        double cI = cos(I);
-        double sI = sin(I);
+        double cw = std::cos(w);
+        double sw = std::sin(w);
+        double cO = std::cos(Om);
+        double sO = std::sin(Om);
+        double cI = std::cos(I);
+        double sI = std::sin(I);
 
-        double x = (cw * c0 - sw * cI) * xp + (-sw * c0 - cw * c0 * cI) * yp;
-        double y = (cw * c0 + cw * sI) * yp + (-sw * c0 + cw * c0 * cI) * yp;
+        double x = (cw * cO - sw * sO * cI) * xp + (-sw * cO - cw * sO * cI) * yp;
+        double y = (cw * sO + sw * cO * cI) * xp + (-sw * sO + cw * cO * cI) * yp;
         double z = (sw * sI) * xp + (cw * sI) * yp;
 
-        return {x,y,z};
+        return { x, y, z };
     }
 
     inline double julianDate(double usecs) {
