@@ -17,7 +17,6 @@ namespace orbits {
     //value at J2000, rate per julian century
     struct elements {
         //au, deg
-
         double a;
         double aR;
 
@@ -45,6 +44,14 @@ namespace orbits {
     constexpr elements SATURN  {9.53667594, -0.00125060, 0.05386179, -0.00050991, 2.48599187,  0.00193609,  49.95424423,   1222.49362201,  92.59887831, -0.41897216, 113.66242448, -0.28867794};
     constexpr elements URANUS  {19.18916464,-0.00196176, 0.04725744, -0.00004397, 0.77263783, -0.00242939, 313.23810451,    428.48202785, 170.95427630,  0.40805281,  74.01692503,  0.04240589};
     constexpr elements NEPTUNE {30.06992276, 0.00026291, 0.00859048,  0.00005105, 1.77004347,  0.00035372, -55.12002969,    218.45945325,  44.96476227, -0.32241464, 131.78422574, -0.00508664};
+
+    constexpr double SATURN_EQ_KM   = 60268.0;
+
+    // radius at the textures left edge
+    constexpr double RING_INNER_KM  = 70900.0;
+
+    // radius at the textures right edge
+    constexpr double RING_OUTER_KM  = 140800.0;
 
     inline glm::dvec3 position(const elements& el, double T) {
         double a = el.a + el.aR * T;
@@ -92,6 +99,26 @@ namespace orbits {
 
     inline double centuries(double jd) {
         return (jd - 2451545.0) / 36525.0;
+    }
+
+    inline glm::dvec3 poleEcliptic(double raDeg, double decDeg) {
+        const double eps = rad(23.4392911);
+
+        double ra = rad(raDeg);
+        double dec = rad(decDeg);
+
+        double x = std::cos(dec) * std::cos(ra);
+        double y = std::cos(dec) * std::sin(ra);
+        double z = std::sin(dec);
+
+        double ceps = std::cos(eps);
+        double seps = std::sin(eps);
+
+        return {
+            x,
+            y * ceps + z * seps,
+            -y * seps + z * ceps
+        };
     }
 }
 

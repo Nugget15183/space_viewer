@@ -9,6 +9,8 @@
 
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
+#include <string>
+
 #include "GLFW/glfw3.h"
 
 #include "glm/glm.hpp"
@@ -25,6 +27,13 @@ struct body {
 
     //heliocentric
     glm::dvec3 posKm;
+
+    double poleRA = 0;
+    double poleDec = 0;
+
+    double flattening = 0;
+
+    unsigned int texid;
 };
 
 class engine {
@@ -48,7 +57,7 @@ private:
     glm::vec2 winSize = {1280, 720};
 
     unsigned int shader_program=0;
-    unsigned int viewLoc, projLoc, modelLoc, camPosLoc, sunDirLoc, colorLoc, emissiveLoc;
+    unsigned int viewLoc, projLoc, modelLoc, camPosLoc, sunDirLoc, colorLoc, emissiveLoc, texLoc, isRingLoc;
 
     double startup = glfwGetTime();
     double lastfpsIncrement = startup;
@@ -60,15 +69,15 @@ private:
     double simClock = startup;
 
     std::vector<body> bodies = {
-        {"sun", nullptr, 695700, {1, 1, 1}, true, {}},
-        {"mercury", &orbits::MERCURY, 2439.7, {0.2f, 0.2f, 0.2f}, false, {}},
-        {"venus", &orbits::VENUS, 6051.8, {0.2f, 0.2f, 0.2f}, true, {}},
-        {"earth", &orbits::EARTH, 6371.0, {0.2f, 0.2f, 0.2f}, false, {}},
-        {"mars", &orbits::MARS, 3389.5, {0.2f, 0.2f, 0.2f}, false, {}},
-        {"jupiter", &orbits::JUPITER, 69911, {0.2f, 0.2f, 0.2f}, false, {}},
-        {"saturn", &orbits::SATURN, 58232, {0.2f, 0.2f, 0.2f}, false, {}},
-        {"uranus", &orbits::URANUS, 25362, {0.2f, 0.2f, 0.2f}, false, {}},
-        {"neptune", &orbits::NEPTUNE, 24622, {0.2f, 0.2f, 0.2f}, false, {}}
+        {"sun", nullptr, 695700, {1, 1, 1}, true, {}, 286.13, 63.87},
+        {"mercury", &orbits::MERCURY, 2439.7, {1, 1, 1}, false, {}, 281.01, 61.416},
+        {"venus", &orbits::VENUS, 6051.8, {1, 1, 1}, false, {}, 272.76, 67.16},
+        {"earth", &orbits::EARTH, 6378.137, {1, 1, 1}, false, {}, 0, 90, 0.00335},
+        {"mars", &orbits::MARS, 3396.2, {1, 1, 1}, false, {}, 317.681, 52.886, 0.00589},
+        {"jupiter", &orbits::JUPITER, 71492, {1, 1, 1}, false, {}, 268.057, 64.495, 0.06487},
+        {"saturn", &orbits::SATURN, 60268, {1, 1, 1}, false, {}, 40.589, 83.537, 0.09796},
+        {"uranus", &orbits::URANUS, 25559, {1, 1, 1}, false, {}, 257.311, -15.175, 0.0228},
+        {"neptune", &orbits::NEPTUNE, 24764, {1, 1, 1}, false, {}, 299.36, 43.46, 0.0171}
     };
 
     static constexpr int camIndex = 3;
@@ -82,8 +91,13 @@ private:
     unsigned int sVAO, sVBO, sEBO;
     int sic = 0;
 
+    unsigned int rVAO, rVBO, rEBO;
+    int ric = 0;
+    unsigned int ringTex;
+
     void createSphere(int stacks, int slices);
     void pointAt(int bIndex);
+    void createRings(int segments);
 };
 
 
