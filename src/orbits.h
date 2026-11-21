@@ -100,26 +100,6 @@ namespace orbits {
     inline double centuries(double jd) {
         return (jd - 2451545.0) / 36525.0;
     }
-
-    inline glm::dvec3 poleEcliptic(double raDeg, double decDeg) {
-        const double eps = rad(23.4392911);
-
-        double ra = rad(raDeg);
-        double dec = rad(decDeg);
-
-        double x = std::cos(dec) * std::cos(ra);
-        double y = std::cos(dec) * std::sin(ra);
-        double z = std::sin(dec);
-
-        double ceps = std::cos(eps);
-        double seps = std::sin(eps);
-
-        return {
-            x,
-            y * ceps + z * seps,
-            -y * seps + z * ceps
-        };
-    }
 }
 
 #endif

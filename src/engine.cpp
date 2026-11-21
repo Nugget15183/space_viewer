@@ -23,15 +23,25 @@ void setWindowCallbacks(GLFWwindow* win) {
     });
 }
 
-glm::mat4 poleRotation(const glm::dvec3& poleEcl) {
-    glm::vec3 y = glm::normalize(glm::vec3(toGL(poleEcl)));
+glm::mat4 bodyRotation(const body &b, double jd) {
+    double d = jd - 2451545.0;
+    double W = std::fmod(b.w0 + b.wRate * d, 360.0);
 
-    glm::vec3 ref = std::abs(y.x) < 0.9f ? glm::vec3(1, 0, 0) : glm::vec3(0, 0, 1);
+    const glm::dvec3 X(1, 0, 0);
+    const glm::dvec3 Z(0, 0, 1);
 
-    glm::vec3 x = glm::normalize(glm::cross(y, ref));
-    glm::vec3 z = glm::cross(x, y);
+    glm::dmat4 R(1.0);
+    R = glm::rotate(R, orbits::rad(b.poleRA + 90.0), Z);
+    R = glm::rotate(R, orbits::rad(90.0 - b.poleDec), X);
+    R = glm::rotate(R, orbits::rad(W), Z);
 
-    return glm::mat4(glm::vec4(x, 0), glm::vec4(y, 0), glm::vec4(z, 0), glm::vec4(0, 0, 0, 1));
+    glm::dmat4 toEcl = glm::rotate(glm::dmat4(1.0), -orbits::rad(23.4392911), X);
+
+    glm::dmat4 G = glm::dmat4(glm::dvec4(1,0,0,0), glm::dvec4(0, 0, -1, 0), glm::dvec4(0, 1, 0, 0), glm::dvec4(0, 0, 0, 1));
+
+    glm::dmat4 B = glm::dmat4(glm::dvec4(-1,0,0,0), glm::dvec4(0, 0, 1, 0), glm::dvec4(0, 1, 0, 0), glm::dvec4(0, 0, 0, 1));
+
+    return glm::mat4(G * toEcl * R * B);
 }
 
 int engine::init() {
@@ -228,7 +238,7 @@ void engine::render() {
         //draw each body as its own scene
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 rot  = poleRotation(orbits::poleEcliptic(b.poleRA, b.poleDec));
+        glm::mat4 rot  = bodyRotation(b, simClock);
         glm::mat4 base = glm::translate(glm::mat4(1.0f), p) * rot;
         glm::mat4 model = base * glm::scale(glm::mat4(1.0f), glm::vec3(s, s * (1.0f - float(b.flattening)), s));
         glm::vec3 sunDir = glm::vec3(toGL(glm::normalize(-b.posKm)));
