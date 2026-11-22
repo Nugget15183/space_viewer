@@ -16,9 +16,9 @@
 
 using namespace util;
 
-void setWindowCallbacks(GLFWwindow* win) {
-    glfwSetScrollCallback(win, [](GLFWwindow* w, double, double dy) {
-        engine* e = (engine*) glfwGetWindowUserPointer(w);
+void setWindowCallbacks(GLFWwindow *win) {
+    glfwSetScrollCallback(win, [](GLFWwindow *w, double, double dy) {
+        engine *e = (engine *) glfwGetWindowUserPointer(w);
         e->onScroll(dy);
     });
 }
@@ -37,9 +37,11 @@ glm::mat4 bodyRotation(const body &b, double jd) {
 
     glm::dmat4 toEcl = glm::rotate(glm::dmat4(1.0), -orbits::rad(23.4392911), X);
 
-    glm::dmat4 G = glm::dmat4(glm::dvec4(1,0,0,0), glm::dvec4(0, 0, -1, 0), glm::dvec4(0, 1, 0, 0), glm::dvec4(0, 0, 0, 1));
+    glm::dmat4 G = glm::dmat4(glm::dvec4(1, 0, 0, 0), glm::dvec4(0, 0, -1, 0), glm::dvec4(0, 1, 0, 0),
+                              glm::dvec4(0, 0, 0, 1));
 
-    glm::dmat4 B = glm::dmat4(glm::dvec4(-1,0,0,0), glm::dvec4(0, 0, 1, 0), glm::dvec4(0, 1, 0, 0), glm::dvec4(0, 0, 0, 1));
+    glm::dmat4 B = glm::dmat4(glm::dvec4(-1, 0, 0, 0), glm::dvec4(0, 0, 1, 0), glm::dvec4(0, 1, 0, 0),
+                              glm::dvec4(0, 0, 0, 1));
 
     return glm::mat4(G * toEcl * R * B);
 }
@@ -138,17 +140,23 @@ int engine::init() {
     emissiveLoc = glGetUniformLocation(shader_program, "emissive");
     texLoc = glGetUniformLocation(shader_program, "tex");
     isRingLoc = glGetUniformLocation(shader_program, "isRing");
+    inRingLoc = glGetUniformLocation(shader_program, "ringIn");
+    outRingLoc = glGetUniformLocation(shader_program, "ringOut");
+    ringTexLoc = glGetUniformLocation(shader_program, "ringTex");
+    sunLocalLoc = glGetUniformLocation(shader_program, "sunLocal");
+    oblateLoc = glGetUniformLocation(shader_program, "oblate");
+    hasRingLoc = glGetUniformLocation(shader_program, "hasRings");
 
     //opengl settings and misc stuff
     stbi_set_flip_vertically_on_load(true);
 
-    for (auto &b : bodies) {
+    for (auto &b: bodies) {
         string path = "resources/" + string(b.name) + ".jpg";
 
         unsigned int texid = loadTexture(path.c_str(), 3);
 
         if (texid != 0) {
-            b.texid=texid;
+            b.texid = texid;
         }
     }
 
@@ -194,6 +202,15 @@ void engine::render() {
 
     glUseProgram(shader_program);
 
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, ringTex);
+
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(texLoc, 0);
+    glUniform1i(ringTexLoc, 1);
+    glUniform1f(inRingLoc, float(orbits::RING_INNER_KM / orbits::SATURN_EQ_KM));
+    glUniform1f(outRingLoc, float(orbits::RING_OUTER_KM / orbits::SATURN_EQ_KM));
+
     glm::dvec3 cam = bodies[camIndex].posKm;
     const double R = 100.0;
 
@@ -202,25 +219,27 @@ void engine::render() {
 
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 
-
-    struct Item {int i; double d;};
+    struct Item {
+        int i;
+        double d;
+    };
     std::vector<Item> order;
 
-    for (int i = 0; i < (int)bodies.size(); i++) {
-        if (i!=camIndex) {
+    for (int i = 0; i < (int) bodies.size(); i++) {
+        if (i != camIndex) {
             order.push_back({
                 i,
-                glm::length(bodies[i].posKm- cam),
+                glm::length(bodies[i].posKm - cam),
             });
         }
     }
 
-    std::sort(order.begin(), order.end(), [](const Item& a, const Item& b)-> bool {
+    std::sort(order.begin(), order.end(), [](const Item &a, const Item &b)-> bool {
         return a.d > b.d;
     });
 
     glBindVertexArray(sVAO);
-    for (const auto& it : order) {
+    for (const auto &it: order) {
         const auto &b = bodies[it.i];
 
         glm::dvec3 relGL = toGL(b.posKm - cam);
@@ -230,32 +249,39 @@ void engine::render() {
 
         float zc = glm::dot(p, fwd);
         float ext = 2.6f * s;
+
         if (zc <= 2.0f * ext) continue;
 
         glm::mat4 proj = glm::perspective(glm::radians(FOV), winSize.x / winSize.y, zc - 2.0f * ext, zc + 2.0f * ext);
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
 
-        //draw each body as its own scene
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 rot  = bodyRotation(b, simClock);
+        glm::mat4 rot = bodyRotation(b, simClock);
         glm::mat4 base = glm::translate(glm::mat4(1.0f), p) * rot;
         glm::mat4 model = base * glm::scale(glm::mat4(1.0f), glm::vec3(s, s * (1.0f - float(b.flattening)), s));
-        glm::vec3 sunDir = glm::vec3(toGL(glm::normalize(-b.posKm)));
+
+        glm::vec3 sunDir = b.emissive ? glm::vec3(0, 1, 0) : glm::vec3(toGL(glm::normalize(-b.posKm)));
+        glm::vec3 sunLocal = glm::transpose(glm::mat3(rot)) * sunDir;
+
+        bool saturn = (it.i == 6 && ringTex);
 
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+
         glUniform3fv(sunDirLoc, 1, glm::value_ptr(sunDir));
+        glUniform3fv(sunLocalLoc, 1, glm::value_ptr(sunLocal));
         glUniform3fv(colorLoc, 1, glm::value_ptr(b.color));
+
         glUniform1i(emissiveLoc, b.emissive ? 1 : 0);
+        glUniform1f(oblateLoc, float(b.flattening));
+        glUniform1i(hasRingLoc, saturn ? 1 : 0);
+        glUniform1i(isRingLoc, 0);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, b.texid);
-        glUniform1i(texLoc, 0);
-        glUniform1i(isRingLoc, 0);
-
         glDrawElements(GL_TRIANGLES, sic, GL_UNSIGNED_INT, 0);
 
-        if (it.i==6 && ringTex) {
+        if (saturn) {
             glm::mat4 rmodel = base * glm::scale(glm::mat4(1.0f), glm::vec3(s));
 
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(rmodel));
@@ -263,11 +289,11 @@ void engine::render() {
             glBindTexture(GL_TEXTURE_2D, ringTex);
 
             glDisable(GL_CULL_FACE);
-
             glBindVertexArray(rVAO);
             glDrawElements(GL_TRIANGLES, ric, GL_UNSIGNED_INT, 0);
 
             glEnable(GL_CULL_FACE);
+
             glBindVertexArray(sVAO);
         }
     }
@@ -288,7 +314,7 @@ void engine::update() {
 
     simClock += dt * timeScale / 86400.0;
     double T = orbits::centuries(simClock);
-    for (auto& b : bodies)
+    for (auto &b: bodies)
         b.posKm = b.el ? orbits::position(*b.el, T) * orbits::AU_KM : glm::dvec3(0.0);
 
     double mx, my;
@@ -311,7 +337,10 @@ void engine::update() {
     }
 
     if (t - lastfpsIncrement >= 1) {
-        glfwSetWindowTitle(window, ("Space Viewer | FPS " + to_string(frames) + " | " + to_string(timeScale) + "x | FOV " + to_string(FOV)).c_str());
+        glfwSetWindowTitle(
+            window,
+            ("Space Viewer | FPS " + to_string(frames) + " | " + to_string(timeScale) + "x | FOV " + to_string(FOV)).
+            c_str());
         lastfpsIncrement = t;
         frames = 0;
     }
@@ -331,7 +360,7 @@ void engine::createSphere(int stacks, int slices) {
             float y = std::cos(phi);
             float z = std::sin(phi) * std::sin(th);
 
-            v.insert(v.end(), {x, y, z, x, y, z, 1.0f -  float(j)/slices, 1.0f - float(i)/stacks});
+            v.insert(v.end(), {x, y, z, x, y, z, 1.0f - float(j) / slices, 1.0f - float(i) / stacks});
         }
     }
 
@@ -340,11 +369,11 @@ void engine::createSphere(int stacks, int slices) {
             unsigned a = i * (slices + 1) + j;
             unsigned b = a + slices + 1;
 
-            idx.insert(idx.end(), {a, a+ 1, b, b, a + 1, b + 1});
+            idx.insert(idx.end(), {a, a + 1, b, b, a + 1, b + 1});
         }
     }
 
-    sic = (int)idx.size();
+    sic = (int) idx.size();
 
     //buffer setup
     glGenVertexArrays(1, &sVAO);
@@ -360,13 +389,13 @@ void engine::createSphere(int stacks, int slices) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size() * sizeof(unsigned), idx.data(), GL_STATIC_DRAW);
 
     //vert attribs
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *) 0);
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3*sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *) (3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6*sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *) (6 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
@@ -396,13 +425,13 @@ void engine::createRings(int segments) {
         float s = std::sin(th);
 
         //                                  pos             normal      uv
-        v.insert(v.end(), {c * rIn, 0, s * rIn,  0, 1, 0,  0.0f, 0.5f});
-        v.insert(v.end(), {c * rOut, 0, s * rOut,  0, 1, 0,  1.0f, 0.5f});
+        v.insert(v.end(), {c * rIn, 0, s * rIn, 0, 1, 0, 0.0f, 0.5f});
+        v.insert(v.end(), {c * rOut, 0, s * rOut, 0, 1, 0, 1.0f, 0.5f});
     }
 
     for (int j = 0; j < segments; j++) {
         unsigned a = 2 * j;
-        idx.insert(idx.end(), {a, a+1, a+2, a+2, a+1, a+3});
+        idx.insert(idx.end(), {a, a + 1, a + 2, a + 2, a + 1, a + 3});
     }
 
     ric = int(idx.size());
@@ -421,13 +450,13 @@ void engine::createRings(int segments) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size() * sizeof(unsigned), idx.data(), GL_STATIC_DRAW);
 
     //vert attribs
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *) 0);
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3*sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *) (3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6*sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *) (6 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);

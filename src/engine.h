@@ -60,7 +60,7 @@ private:
     glm::vec2 winSize = {1280, 720};
 
     unsigned int shader_program=0;
-    unsigned int viewLoc, projLoc, modelLoc, camPosLoc, sunDirLoc, colorLoc, emissiveLoc, texLoc, isRingLoc;
+    unsigned int viewLoc, projLoc, modelLoc, camPosLoc, sunDirLoc, colorLoc, emissiveLoc, texLoc, isRingLoc, inRingLoc, outRingLoc, hasRingLoc, oblateLoc, sunLocalLoc, ringTexLoc;
 
     double startup = glfwGetTime();
     double lastfpsIncrement = startup;

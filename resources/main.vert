@@ -9,13 +9,13 @@ uniform mat4 proj;
 
 out vec3 vNormal;
 out vec2 vUV;
+out vec3 vLocal;
 
 void main() {
-    vec4 wp = model * vec4(aPos, 1.0f);
-
     vNormal = mat3(transpose(inverse(model))) * aNormal;
 
+    vLocal = aPos;
     vUV = aUV;
 
-    gl_Position = proj * view * wp;
+    gl_Position = proj * view * model * vec4(aPos, 1.0f);
 }
