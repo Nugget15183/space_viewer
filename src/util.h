@@ -130,6 +130,34 @@ namespace util {
 
         return p;
     }
+
+    static void jdToDate(double jd, int& Y, int& Mo, int& D, int& hh, int& mm, int& ss) {
+        double J = jd + 0.5f;
+        double Z = std::floor(J);
+        double F = J - Z;
+        double A = Z;
+
+        if (Z >= 2299161.0) {
+            double alpha = std::floor((Z - 1867216.25) / 36524.25);
+            A = Z + 1.0 + alpha - std::floor(alpha / 4.0);
+        }
+
+        double B = A + 1524.0;
+        double C = std::floor((B - 122.1) / 365.25);
+        double Dd = std::floor(365.25 * C);
+        double E = std::floor((B - Dd) / 30.6001);
+
+        double Dayf = B - Dd - std::floor(30.6001 * E) + F;
+
+        D = (int)std::floor(Dayf);
+
+        int secs = std::min((int)std::round((Dayf - D) * 86400.0), 86399);
+        hh = secs / 3600.0;
+        mm = (secs % 3600) / 60.0;
+        ss = secs % 60;
+        Mo = (int) (E < 14.0 ? E - 1.0 : E - 13.0);
+        Y = (int) (Mo > 2 ? C - 4716.0 : C - 4715.0);
+    }
 }
 
 #endif //SPACE_VIEWER_UTIL_H

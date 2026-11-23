@@ -15,6 +15,10 @@
 
 #include "glm/glm.hpp"
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 struct body {
     const char* name;
 
@@ -84,6 +88,9 @@ private:
     unsigned int blurProg = 0;
     unsigned int compProg;
 
+    bool showUi = true;
+    bool paused = false;
+
     //atmospheric seeing
     float seeingArcsec = 1.0f;
     float focusBlur = 0.0f; //0 - 1
@@ -128,11 +135,18 @@ private:
     int ric = 0;
     unsigned int ringTex;
 
+    bool showMap = true;
+    bool mapLog = true;
+    bool mapOrbits = true;
+    bool mapLabels = true;
+    float mapZoom = 0.0f;
+
     void createSphere(int stacks, int slices);
     void pointAt(int bIndex);
     void createRings(int segments);
     void createTargets();
     void postProcess();
+    void drawUI();
 };
 
 

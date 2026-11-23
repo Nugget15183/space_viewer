@@ -11,6 +11,8 @@
 #include "glm/ext/matrix_transform.hpp"
 
 #include <ctime>
+#include <imgui_internal.h>
+
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
@@ -18,6 +20,8 @@ using namespace util;
 
 void setWindowCallbacks(GLFWwindow *win) {
     glfwSetScrollCallback(win, [](GLFWwindow *w, double, double dy) {
+        if (ImGui::GetIO().WantCaptureMouse) return;
+
         engine *e = (engine *) glfwGetWindowUserPointer(w);
         e->onScroll(dy);
     });
@@ -77,15 +81,13 @@ int engine::init() {
     glViewport(0, 0, winSize[0], winSize[1]); //size of the window
     setWindowCallbacks(window);
 
-    log(INFO, (string("GL: ") + (const char*)glGetString(GL_VERSION)).c_str());
-    log(INFO, (string("GPU: ") + (const char*)glGetString(GL_RENDERER)).c_str());
-    log(INFO, (string("GLSL: ") + (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION)).c_str());
+    log(INFO, (string("GL: ") + (const char *) glGetString(GL_VERSION)).c_str());
+    log(INFO, (string("GPU: ") + (const char *) glGetString(GL_RENDERER)).c_str());
+    log(INFO, (string("GLSL: ") + (const char *) glGetString(GL_SHADING_LANGUAGE_VERSION)).c_str());
 
     //Shader initalization
     string rv = readFile("resources/main.vert");
     string rf = readFile("resources/main.frag");
-
-    log(INFO, ("main.frag: " + to_string(rf.size()) + " bytes starts with: " + rf.substr(0, 20)).c_str());
 
     const GLchar *vert_src = rv.c_str();
     const GLchar *frag_src = rf.c_str();
@@ -166,8 +168,8 @@ int engine::init() {
     glGenVertexArrays(1, &quadVAO);
     createTargets();
 
-    auto setbody = [&](const char* n, float limb, glm::vec3 col, float h, float dens, float g) {
-        for (auto &b : bodies) {
+    auto setbody = [&](const char *n, float limb, glm::vec3 col, float h, float dens, float g) {
+        for (auto &b: bodies) {
             if (string(b.name) == n) {
                 b.limbDark = limb;
                 b.atmoColor = col;
@@ -223,11 +225,22 @@ int engine::init() {
     createSphere(64, 128);
     simClock = orbits::julianDate((double) std::time(nullptr));
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::GetIO().IniFilename = nullptr;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330 core");
+
     return 0;
 }
 
 void engine::close() {
     double time = glfwGetTime();
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glfwTerminate();
 
@@ -239,7 +252,7 @@ void engine::render() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
-    glViewport(0, 0, (int)winSize.x, (int)winSize.y);
+    glViewport(0, 0, (int) winSize.x, (int) winSize.y);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glEnable(GL_CULL_FACE);
@@ -375,34 +388,49 @@ void engine::render() {
     }
 
     postProcess();
+    drawUI();
     glfwSwapBuffers(window);
 }
 
 void engine::update() {
     glfwPollEvents();
 
+    ImGuiIO &io = ImGui::GetIO();
+
     double t = glfwGetTime();
     dt = t - lastframeT;
     lastframeT = t;
 
-    focusBlur *= (float)std::exp(-3.0f * dt);
+    focusBlur *= (float) std::exp(-3.0f * dt);
 
     //z speeds up time x slows
-    if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) timeScale *= 1.0 + 2.0 * dt;
-    if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) timeScale /= 1.0 + 2.0 * dt;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_BRACKET) == GLFW_PRESS) seeingArcsec = std::max(0.0f, seeingArcsec - float(dt) * 2.0f);
-    if (glfwGetKey(window, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS) seeingArcsec = std::min(8.0f, seeingArcsec + float(dt) * 2.0f);
+    if (!io.WantCaptureKeyboard) {
+        if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) timeScale *= 1.0 + 2.0 * dt;
+        if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) timeScale /= 1.0 + 2.0 * dt;
+        if (glfwGetKey(window, GLFW_KEY_LEFT_BRACKET) == GLFW_PRESS) seeingArcsec = std::max(
+                                                                         0.0f, seeingArcsec - float(dt) * 2.0f);
+        if (glfwGetKey(window, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS) seeingArcsec = std::min(
+                                                                          8.0f, seeingArcsec + float(dt) * 2.0f);
 
-    static bool vWas = false;
-    bool vNow = glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS;
+        static bool vWas = false;
+        static bool tabWas = false;
 
-    if (vNow && !vWas) {
-        fieldStop = !fieldStop;
+        bool vNow = glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS;
+        bool tabNow = glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS;
+
+        if (vNow && !vWas) {
+            fieldStop = !fieldStop;
+        }
+
+        if (tabNow && !tabWas) {
+            showUi = !showUi;
+        }
+
+        vWas = vNow;
+        tabWas = tabNow;
     }
 
-    vWas = vNow;
-
-    simClock += dt * timeScale / 86400.0;
+    if (!paused)simClock += dt * timeScale / 86400.0;
     double T = orbits::centuries(simClock);
     for (auto &b: bodies) {
         b.posKm = b.el ? orbits::position(*b.el, T) * orbits::AU_KM : glm::dvec3(0.0);
@@ -411,7 +439,7 @@ void engine::update() {
     double mx, my;
     glfwGetCursorPos(window, &mx, &my);
 
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !io.WantCaptureMouse) {
         float degPerPx = FOV / winSize.y;
 
         yaw -= glm::radians(float(mx - lastM.x) * degPerPx);
@@ -558,8 +586,8 @@ void engine::createRings(int segments) {
 }
 
 void engine::createTargets() {
-    int w = (int)winSize.x;
-    int h = (int)winSize.y;
+    int w = (int) winSize.x;
+    int h = (int) winSize.y;
 
     if (sceneFBO) {
         glDeleteFramebuffers(1, &sceneFBO);
@@ -596,7 +624,7 @@ void engine::createTargets() {
         log(ERRO, "Framebuffer is incomplete");
     }
 
-    for (int i=0; i < 2; i++) {
+    for (int i = 0; i < 2; i++) {
         blurTex[i] = colorTex();
 
         glGenFramebuffers(1, &blurFBO[i]);
@@ -608,8 +636,8 @@ void engine::createTargets() {
 }
 
 void engine::postProcess() {
-    int w = (int)winSize.x;
-    int h = (int)winSize.y;
+    int w = (int) winSize.x;
+    int h = (int) winSize.y;
 
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
@@ -617,13 +645,13 @@ void engine::postProcess() {
     glBindVertexArray(quadVAO);
     glActiveTexture(GL_TEXTURE0);
 
-    auto U = [](unsigned int prog, const char* n) {
+    auto U = [](unsigned int prog, const char *n) {
         return glGetUniformLocation(prog, n);
     };
 
     float arcsecPerPx = FOV * 3600.0f / winSize.y;
 
-    float now = (float)glfwGetTime();
+    float now = (float) glfwGetTime();
     float calm = 0.5f + 0.5f * std::sin(0.8f * now) * std::sin(0.31f * now + 1.7f);
     float seeingNow = seeingArcsec * (0.3f + 0.7f * calm);
 
@@ -657,15 +685,272 @@ void engine::postProcess() {
     glBindTexture(GL_TEXTURE_2D, blurTex[1]);
 
     glUniform1i(U(compProg, "scene"), 0);
-    glUniform2f(U(compProg, "resolution"), (float)w, (float)h);
+    glUniform2f(U(compProg, "resolution"), (float) w, (float) h);
     glUniform1f(U(compProg, "time"), (float) glfwGetTime());
     glUniform1f(U(compProg, "warpPx"), std::min(0.4f * seeingNow / arcsecPerPx, 30.0f));
     glUniform1f(U(compProg, "cellPx"), std::clamp(12.0f / arcsecPerPx, 24.0f, 300.0f));
-    glUniform1f(U(compProg, "dispersionPx"), std::min(0.8f / arcsecPerPx, 8.0f));
     glUniform1f(U(compProg, "exposure"), exposure);
     glUniform1f(U(compProg, "vignette"), vignette);
     glUniform1i(U(compProg, "fieldStop"), fieldStop ? 1 : 0);
     glUniform1f(U(compProg, "focusSepPx"), focusBlur * 0.01f * h);
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
+}
+
+void engine::drawUI() {
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    if (showUi) {
+        ImGui::SetNextWindowPos(ImVec2(12, 12), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Telescope", &showUi, ImGuiWindowFlags_AlwaysAutoResize);
+
+        ImGui::SeparatorText("Time");
+
+        int y, Mo, D, hh, mm, ss;
+        jdToDate(simClock, y, Mo, D, hh, mm, ss);
+
+        ImGui::Text("%04d-%02d-%02d %02d-%02d-%02d UTC", y, Mo, D, hh, mm, ss);
+        ImGui::Checkbox("Paused", &paused);
+
+        ImGui::SameLine();
+        if (ImGui::Button("Now")) {
+            simClock = orbits::julianDate((double) std::time(nullptr));
+        }
+
+        ImGui::InputDouble("Speed (x Real Time)", &timeScale, 0.0, 0.0, "%.1f");
+
+        if (ImGui::Button("1x")) timeScale = 1.0f;
+        if (ImGui::Button("1 min/s")) timeScale = 60.0f;
+        if (ImGui::Button("1 hr/s")) timeScale = 3600.0f;
+        if (ImGui::Button("1 day/s")) timeScale = 86400.0f;
+        if (ImGui::Button("1 yr/s")) timeScale = 31536000.0f;
+
+        ImGui::SeparatorText("Optics");
+        ImGui::SliderFloat("FOV (deg)", &FOV, 0.005, 90.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+        ImGui::Text("%.3f arcsec / pixel", FOV * 3600.0 / winSize.y);
+
+        ImGui::SliderFloat("Seeing (arcsec)", &seeingArcsec, 0.0f, 8.0f);
+        ImGui::SliderFloat("Exposure", &exposure, 0.2f, 0.4f);
+        ImGui::SliderFloat("Vignette", &vignette, 0.0f, 1.0f);
+
+        ImGui::Checkbox("Field Stop", &fieldStop);
+
+        ImGui::SameLine();
+        if (ImGui::Button("Defocus")) {
+            focusBlur = 1.0f;
+        }
+
+        ImGui::SeparatorText("Targets");
+        int n = 0;
+        for (int i = 0; i < (int) bodies.size(); i++) {
+            if (i == camIndex) continue;
+            if (n % 4 != 0) ImGui::SameLine();
+            if (ImGui::Button(bodies[i].name)) pointAt(i);
+            n++;
+        }
+
+        if (ImGui::BeginTable("bodies", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
+            ImGui::TableSetupColumn("Body");
+            ImGui::TableSetupColumn("Dist (AU)");
+            ImGui::TableSetupColumn("Size (Arcsec)");
+
+            for (int i = 0; i < (int) bodies.size(); i++) {
+                if (i == camIndex)continue;
+
+                double dKm = glm::length(bodies[i].posKm - bodies[camIndex].posKm);
+                double arcsec = 2.0 * std::atan(bodies[i].radiusKm / dKm) * (180.0f / orbits::PI) * 3600.0;
+
+                ImGui::TableNextRow();
+
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(bodies[i].name);
+
+                ImGui::TableNextColumn();
+                ImGui::Text("%.3f", dKm / orbits::AU_KM);
+
+                ImGui::TableNextColumn();
+                ImGui::Text("%.1f", arcsec);
+            }
+            ImGui::EndTable();
+        }
+
+        ImGui::End();
+    }
+
+    static const ImU32 cols[9]{
+        IM_COL32(255, 200, 120, 255),
+        IM_COL32(170, 170, 170, 255),
+        IM_COL32(235, 210, 150, 255),
+        IM_COL32(90, 150, 255, 255),
+        IM_COL32(220, 110, 70, 255),
+        IM_COL32(210, 170, 130, 255),
+        IM_COL32(230, 205, 140, 255),
+        IM_COL32(130, 220, 230, 255),
+        IM_COL32(80, 110, 255, 255),
+    };
+
+    ImGui::SetNextWindowPos(ImVec2(12, 440), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(420, 490), ImGuiCond_FirstUseEver);
+
+    if (!ImGui::Begin("Solar System", &showMap)) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Checkbox("Log Scale", &mapLog);
+    ImGui::SameLine();
+
+    ImGui::Checkbox("Map Orbits", &mapOrbits);
+    ImGui::SameLine();
+
+    ImGui::Checkbox("Labels", &mapLabels);
+    ImGui::SameLine();
+
+    ImGui::SliderFloat("Zoom", &mapZoom, 0.5f, 60.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    float side = std::max(160.0f, std::min(avail.x, avail.y - ImGui::GetTextLineHeightWithSpacing()));
+
+    ImVec2 p0 = ImGui::GetCursorScreenPos();
+    ImVec2 p1(p0.x + side, p0.y + side);
+    ImVec2 c(p0.x + side * 0.5f, p0.y + side * 0.5f);
+
+    float half = side * 0.5f - 8.0f;
+    ImGui::InvisibleButton("map_canvas", ImVec2(side, side));
+    bool hovered = ImGui::IsItemHovered();
+
+    ImGuiIO &io = ImGui::GetIO();
+    if (hovered && io.MouseWheel) {
+        mapZoom = glm::clamp(mapZoom * std::pow(1.15f, io.MouseWheel), 0.5f, 60.0f);
+    }
+
+    double maxAU = 32.0f;
+    auto mapR = [&](double rAU) {
+        double f = mapLog ? std::log1p(rAU / 0.3f) / std::log1p(maxAU / 0.3) : rAU / maxAU;
+        return float(f * half) * mapZoom;
+    };
+
+    auto toScreen = [&](double x, double y) {
+        double r = std::sqrt(x * x + y * y);
+
+        if (r < 1e-9) return c;
+        float m = mapR(r);
+
+        return ImVec2(c.x + float(x / r) * m, c.y - float(y / r) * m);
+    };
+
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    dl->PushClipRect(p0, p1, true);
+    dl->AddRectFilled(p0, p1, IM_COL32(6, 8, 16, 255));
+
+    const double rings[] = {1, 5, 10, 20, 30};
+
+    for (double au: rings) {
+        float rr = mapR(au);
+
+        dl->AddCircle(c, rr, IM_COL32(255, 255, 255, 28), 96, 1.0f);
+
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%g AU", au);
+
+        dl->AddText(ImVec2(c.x + rr + 3.0f, c.y + 2.0f), IM_COL32(255, 255, 255, 70), buf);
+    }
+
+    double T = orbits::centuries(simClock);
+    if (mapOrbits) {
+        std::vector<ImVec2> pts;
+
+        for (int i = 0; i < (int) bodies.size(); i++) {
+            if (!bodies[i].el)continue;
+
+            double period = 360.0 / bodies[i].el->LR;
+            pts.clear();
+
+            for (int k = 0; k < 160; k++) {
+                glm::dvec3 q = orbits::position(*bodies[i].el, T + period * k / 160.0);
+                pts.push_back(toScreen(q.x, q.y));
+            }
+
+            ImU32 col = (cols[i % 9] & 0x00FFFFFFu) | (70u << IM_COL32_A_SHIFT);
+            dl->AddPolyline(pts.data(), (int) pts.size(), col, ImDrawFlags_Closed, 1.0f);
+        }
+    }
+
+    glm::dvec3 earth = bodies[camIndex].posKm / orbits::AU_KM;
+
+    {
+        float fx = std::cos(pitch) * std::cos(yaw);
+        float fz = std::cos(pitch) * std::sin(yaw);
+        float hl = std::sqrt(fx * fx + fz * fz);
+
+        if (hl > 0.05f) {
+            double dx = fx / hl;
+            double dy = -fz / hl;
+
+            ImVec2 a = toScreen(earth.x, earth.y);
+            ImVec2 b = toScreen(earth.x + dx * 0.02, earth.y + dy * 0.02);
+
+            float vx = b.x - a.x;
+            float vy = b.y - a.y;
+
+            float vl = sqrt(vx * vx + vy * vy);
+            if (vl > 1e-6f) {
+                ImVec2 end(a.x + vx / vl * 70.0f, a.y + vy / vl * 70.0f);
+                dl->AddLine(a, end, IM_COL32(120, 255, 160, 200), 1.5f);
+                dl->AddCircleFilled(end, 2.5f, IM_COL32(120, 255, 160, 255));
+            }
+        }
+    }
+
+    int hover = -1;
+    float best = 14.0f;
+
+    for (int i = 0; i < (int) bodies.size(); i++) {
+        glm::dvec3 q = bodies[i].posKm / orbits::AU_KM;
+        ImVec2 s = toScreen(q.x, q.y);
+
+        float r = (i == 0) ? 7.0f : (i == camIndex ? 4.5f : 3.5f);
+
+        if (i == 0) {
+            dl->AddCircleFilled(s, 12.0f, cols[i % 9]);
+        }
+        dl->AddCircleFilled(s, r, cols[i % 9]);
+
+        if (mapLabels && i != 0) {
+            dl->AddText(ImVec2(s.x + r + 3.0f, s.y - 7.0f), IM_COL32(220, 225, 235, 220), bodies[i].name);
+        }
+
+        if (i != camIndex) {
+            float dx = io.MousePos.x - s.x;
+            float dy = io.MousePos.y - s.y;
+
+            float d = std::sqrt(dx * dx + dy * dy);
+
+            if (d < best) {
+                best = d;
+                hover = i;
+            }
+        }
+    }
+    dl->PopClipRect();
+
+    if (hovered && hover >= 0) {
+        double dKm = glm::length(bodies[hover].posKm - bodies[camIndex].posKm);
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(bodies[hover].name);
+
+        ImGui::Text("%.3f AU From Earth", dKm / orbits::AU_KM);
+        ImGui::Text("Light Time: %.1f min", dKm / 299792.458 / 60.0);
+        ImGui::TextDisabled("Click to point your telescope");
+        ImGui::EndTooltip();
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) pointAt(hover);
+    }
+
+    ImGui::TextDisabled("View from epiliptic north, scroll to zoom, click a body to point at it.");
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
