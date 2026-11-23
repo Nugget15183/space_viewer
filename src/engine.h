@@ -36,7 +36,17 @@ struct body {
     double w0 = 0;
     double wRate = 0;
 
-    unsigned int texid;
+    unsigned int texid = 0;
+
+    float limbDark = 0.0f;
+
+    glm::vec3 atmoColor = glm::vec3(0.0f);
+
+    float atmoH = 0.0f;
+    float atmoDensity = 0.0f;
+
+    //forward scatter
+    float atmoG = 0.6f;
 };
 
 class engine {
@@ -60,7 +70,27 @@ private:
     glm::vec2 winSize = {1280, 720};
 
     unsigned int shader_program=0;
-    unsigned int viewLoc, projLoc, modelLoc, camPosLoc, sunDirLoc, colorLoc, emissiveLoc, texLoc, isRingLoc, inRingLoc, outRingLoc, hasRingLoc, oblateLoc, sunLocalLoc, ringTexLoc;
+
+    unsigned int viewLoc, projLoc, modelLoc, camPosLoc, sunDirLoc, colorLoc, emissiveLoc, texLoc;
+    unsigned int isRingLoc, inRingLoc, outRingLoc, hasRingLoc, oblateLoc, sunLocalLoc, ringTexLoc;
+    unsigned int viewUnitLoc, limbDarkLoc, isAtmoLoc, atmoColorLoc, atmoHLoc, atmoDensLoc, atmoGLoc;
+
+    unsigned int sceneFBO = 0;
+    unsigned int sceneCol = 0;
+    unsigned int sceneDepth = 0;
+    unsigned int blurFBO[2] = {0, 0};
+    unsigned int blurTex[2] = {0, 0};
+    unsigned int quadVAO = 0;
+    unsigned int blurProg = 0;
+    unsigned int compProg;
+
+    //atmospheric seeing
+    float seeingArcsec = 1.0f;
+    float focusBlur = 0.0f; //0 - 1
+    float exposure = 1.0f;
+    float vignette = 0.25f;
+
+    bool fieldStop = true;
 
     double startup = glfwGetTime();
     double lastfpsIncrement = startup;
@@ -101,6 +131,8 @@ private:
     void createSphere(int stacks, int slices);
     void pointAt(int bIndex);
     void createRings(int segments);
+    void createTargets();
+    void postProcess();
 };
 
 
