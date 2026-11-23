@@ -25,6 +25,11 @@ void setWindowCallbacks(GLFWwindow *win) {
         engine *e = (engine *) glfwGetWindowUserPointer(w);
         e->onScroll(dy);
     });
+
+    glfwSetFramebufferSizeCallback(win, [](GLFWwindow *w, int width, int height) {
+        engine *e = (engine *) glfwGetWindowUserPointer(w);
+        e->onResize(width, height);
+    });
 }
 
 glm::mat4 bodyRotation(const body &b, double jd) {
@@ -49,6 +54,12 @@ glm::mat4 bodyRotation(const body &b, double jd) {
 
     return glm::mat4(G * toEcl * R * B);
 }
+
+void engine::onResize(int w, int h) {
+    minimized = (w == 0 || h == 0);
+    pendingWResize = glm::ivec2(w, h);
+}
+
 
 int engine::init() {
     log(INFO, "Initalizing...");
@@ -248,6 +259,14 @@ void engine::close() {
 }
 
 void engine::render() {
+    if (minimized)return;
+
+    if (pendingWResize.x > 0 && pendingWResize.y > 0 && (pendingWResize.x != winSize.x || pendingWResize.y != winSize.y)) {
+        winSize.x = pendingWResize.x;
+        winSize.y = pendingWResize.y;
+        createTargets();
+    }
+
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

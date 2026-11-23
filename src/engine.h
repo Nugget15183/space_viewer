@@ -141,6 +141,9 @@ private:
     bool mapLabels = true;
     float mapZoom = 0.0f;
 
+    glm::vec2 pendingWResize = {};
+    bool minimized = false;
+
     void createSphere(int stacks, int slices);
     void pointAt(int bIndex);
     void createRings(int segments);
