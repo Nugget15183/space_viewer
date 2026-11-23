@@ -1,6 +1,6 @@
 # Space Viewer
 
-##IMPORTANT
+## IMPORTANT
 If the map view of planets doesnt appear to be working, scroll on it, it updates the view and fixes it
 
 A real-time solar system simulator written in C++20 and OpenGL 3.3. You observe the planets from Earth through a virtual telescope, with orbits, relative scales, rotation and lighting kept as physically faithful as possible. Only the telescope itself is allowed to be impossibly powerful.
