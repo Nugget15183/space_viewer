@@ -2,7 +2,9 @@
 
 A real-time solar system simulator written in C++20 and OpenGL 3.3. You observe the planets from Earth through a virtual telescope, with orbits, relative scales, rotation and lighting kept as physically faithful as possible. Only the telescope itself is allowed to be impossibly powerful.
 
-<!-- Add screenshots here, e.g. ![Saturn at high zoom](docs/saturn.png) -->
+<img width="1285" height="751" alt="Screenshot 2026-11-21 212605" src="https://github.com/user-attachments/assets/da938c21-ad77-4ab5-9d93-f09ab91ad5da" />
+<img width="1279" height="743" alt="Screenshot 2026-11-22 210616" src="https://github.com/user-attachments/assets/30a33f69-24f5-4e55-baf1-0a83ac79e481" />
+<img width="1919" height="1022" alt="Screenshot 2026-11-22 231056" src="https://github.com/user-attachments/assets/d7403dc3-a499-4ff8-8ec6-623b2fa33df0" />
 
 ## Features
 
